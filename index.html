@@ -2,64 +2,285 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>紙容器データ生成ツール</title>
+<title>紙容器シミュレーター（a,b,V連動版）</title>
 <style>
-body { font-family: Arial, sans-serif; padding: 20px; }
-button { padding: 10px 20px; font-size: 18px; cursor: pointer; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    padding: 20px;
+    max-width: 900px;
+    margin: auto;
+  }
+  h1 {
+    font-size: 22px;
+    margin-bottom: 8px;
+  }
+  .formula {
+    font-family: "Cambria Math", "Times New Roman", serif;
+    font-size: 28px;
+    margin-bottom: 16px;
+  }
+  .section {
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+  th, td {
+    border: 1px solid #ccc;
+    padding: 6px 8px;
+    text-align: center;
+  }
+  th {
+    background-color: #f5f5f5;
+  }
+  input[type="number"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 4px 6px;
+    text-align: right;
+  }
+  button {
+    padding: 6px 10px;
+    cursor: pointer;
+    border-radius: 6px;
+    border: 1px solid #888;
+    background: #f3f3f3;
+  }
+  button.fixed {
+    background: #0078d4;
+    color: white;
+    border-color: #005a9e;
+  }
+  #fixed-info {
+    font-size: 14px;
+    margin-top: 6px;
+    color: #333;
+  }
+  #message {
+    margin-top: 6px;
+    font-size: 13px;
+    color: #c00;
+  }
+  #save-btn {
+    margin-top: 10px;
+  }
 </style>
 </head>
 <body>
 
-<h1>📦 紙容器スプレッドシート生成ツール</h1>
-<p>式：<strong>V = a(21 - 2b)b</strong></p>
-<p><strong>a：</strong> 0～8.7<br>
-<strong>b：</strong> 0～10.5<br>
-刻み幅：0.1（変更可）</p>
+<h1>📦 紙容器シミュレーター</h1>
+<div class="formula">\( V = a(21 - 2b)b \)</div>
 
-<label>刻み幅（a,b共通）: <input id="step" type="number" value="0.1" step="0.1"></label>
-<br><br>
-<label>目標体積: <input id="target" type="number" value="220"></label>
-<label>許容±: <input id="margin" type="number" value="10"></label>
-<br><br>
+<div class="section">
+  <h2>入力エリア（Excel風）</h2>
+  <p>※ いつも <strong>1つだけ「固定」</strong> が選ばれます（デフォルトは V = 220 固定）。<br>
+  固定されていない 2つのうち、どちらかを変更すると、残り1つが自動的に計算されます。</p>
 
-<button onclick="generateCSV()">📄 CSV を生成してダウンロード</button>
+  <table>
+    <thead>
+      <tr>
+        <th>変数</th>
+        <th>値</th>
+        <th>固定</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <th>a（底面の横）</th>
+        <td><input id="input-a" type="number" step="0.001" min="0" oninput="handleInput('a')"></td>
+        <td><button id="btn-fixed-a" onclick="setFixed('a')">固定</button></td>
+      </tr>
+      <tr>
+        <th>b（高さ）</th>
+        <td><input id="input-b" type="number" step="0.001" min="0" oninput="handleInput('b')"></td>
+        <td><button id="btn-fixed-b" onclick="setFixed('b')">固定</button></td>
+      </tr>
+      <tr>
+        <th>V（体積）</th>
+        <td><input id="input-v" type="number" step="0.001" min="0" oninput="handleInput('V')"></td>
+        <td><button id="btn-fixed-v" onclick="setFixed('V')">固定</button></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div id="fixed-info"></div>
+  <div id="message"></div>
+
+  <button id="save-btn" onclick="saveCurrent()">保存する</button>
+</div>
+
+<div class="section">
+  <h2>保存された組み合わせ</h2>
+  <table id="saved-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>a</th>
+        <th>b</th>
+        <th>V</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- ここに行が追加される -->
+    </tbody>
+  </table>
+</div>
 
 <script>
-function generateCSV() {
-    const step = parseFloat(document.getElementById("step").value);
-    const target = parseFloat(document.getElementById("target").value);
-    const margin = parseFloat(document.getElementById("margin").value);
+  // 状態管理
+  let fixedVar = 'V'; // デフォルトで V を固定
+  let saveCount = 0;
 
-    let rows = [];
-    rows.push(["a","b","V","範囲内?","ほぼ220?"]);
+  const inputA = document.getElementById('input-a');
+  const inputB = document.getElementById('input-b');
+  const inputV = document.getElementById('input-v');
 
-    for (let a = step; a <= 8.7; a += step) {
-        for (let b = step; b <= 10.5; b += step) {
-            const V = a * (21 - 2*b) * b;
-            const inRange = (V >= target - margin && V <= target + margin);
-            const exact = Math.abs(V - target) < 0.001;
+  const btnFixedA = document.getElementById('btn-fixed-a');
+  const btnFixedB = document.getElementById('btn-fixed-b');
+  const btnFixedV = document.getElementById('btn-fixed-v');
 
-            rows.push([
-                a.toFixed(3),
-                b.toFixed(3),
-                V.toFixed(3),
-                inRange ? "TRUE" : "FALSE",
-                exact ? "TRUE" : "FALSE"
-            ]);
+  const fixedInfo = document.getElementById('fixed-info');
+  const message = document.getElementById('message');
+  const savedTableBody = document.querySelector('#saved-table tbody');
+
+  function setMessage(text) {
+    message.textContent = text || '';
+  }
+
+  function updateFixedDisplay() {
+    btnFixedA.classList.toggle('fixed', fixedVar === 'a');
+    btnFixedB.classList.toggle('fixed', fixedVar === 'b');
+    btnFixedV.classList.toggle('fixed', fixedVar === 'V');
+    fixedInfo.textContent = `現在 固定されている変数：${fixedVar}`;
+  }
+
+  function setFixed(v) {
+    fixedVar = v;
+    updateFixedDisplay();
+    setMessage('');
+  }
+
+  // 二次方程式から b を求める（V = a(21 - 2b)b）
+  function solveBFromAV(a, V) {
+    if (a === 0) return null;
+    const D = 441 * a * a - 8 * a * V; // 判別式
+    if (D < 0) return null;
+    const sqrtD = Math.sqrt(D);
+    const b1 = (21 * a + sqrtD) / (4 * a);
+    const b2 = (21 * a - sqrtD) / (4 * a);
+    const candidates = [b1, b2].filter(b => b > 0 && b < 10.5);
+    if (candidates.length === 0) return null;
+    // 小さい方を採用
+    return Math.min.apply(null, candidates);
+  }
+
+  function handleInput(changed) {
+    setMessage('');
+
+    const aVal = parseFloat(inputA.value);
+    const bVal = parseFloat(inputB.value);
+    const vVal = parseFloat(inputV.value);
+
+    let a = isNaN(aVal) ? 0 : aVal;
+    let b = isNaN(bVal) ? 0 : bVal;
+    let V = isNaN(vVal) ? 0 : vVal;
+
+    try {
+      if (fixedVar === 'V') {
+        // V を保ったまま a,b を調整
+        if (changed === 'a') {
+          const newB = solveBFromAV(a, V);
+          if (newB === null) throw new Error('その a と V の組では b が求まりません。');
+          b = newB;
+          inputB.value = b.toFixed(3);
+        } else if (changed === 'b') {
+          const denom = (21 - 2 * b) * b;
+          if (denom <= 0) throw new Error('b の値が条件に合いません。');
+          a = V / denom;
+          if (a <= 0 || a > 8.7) throw new Error('その b と V の組では a が条件を満たしません。');
+          inputA.value = a.toFixed(3);
+        } else if (changed === 'V') {
+          // 固定変数自体を変えたときは、b から a を再計算
+          const denom = (21 - 2 * b) * b;
+          if (denom <= 0) throw new Error('b の値が条件に合いません。');
+          a = V / denom;
+          if (a <= 0 || a > 8.7) throw new Error('その b と V の組では a が条件を満たしません。');
+          inputA.value = a.toFixed(3);
         }
+      } else if (fixedVar === 'a') {
+        if (changed === 'b') {
+          V = a * (21 - 2 * b) * b;
+          inputV.value = V.toFixed(3);
+        } else if (changed === 'V') {
+          const newB = solveBFromAV(a, V);
+          if (newB === null) throw new Error('その a と V の組では b が求まりません。');
+          b = newB;
+          inputB.value = b.toFixed(3);
+        } else if (changed === 'a') {
+          // a を変えたときは、現在の b から V を再計算
+          V = a * (21 - 2 * b) * b;
+          inputV.value = V.toFixed(3);
+        }
+      } else if (fixedVar === 'b') {
+        if (changed === 'a') {
+          V = a * (21 - 2 * b) * b;
+          inputV.value = V.toFixed(3);
+        } else if (changed === 'V') {
+          const denom = (21 - 2 * b) * b;
+          if (denom <= 0) throw new Error('b の値が条件に合いません。');
+          a = V / denom;
+          if (a <= 0 || a > 8.7) throw new Error('その b と V の組では a が条件を満たしません。');
+          inputA.value = a.toFixed(3);
+        } else if (changed === 'b') {
+          V = a * (21 - 2 * b) * b;
+          inputV.value = V.toFixed(3);
+        }
+      }
+    } catch (e) {
+      setMessage(e.message);
     }
+  }
 
-    // CSV文字列生成
-    const csvContent = rows.map(e => e.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv" });
+  function saveCurrent() {
+    const aVal = parseFloat(inputA.value);
+    const bVal = parseFloat(inputB.value);
+    const vVal = parseFloat(inputV.value);
+    if ([aVal, bVal, vVal].some(x => isNaN(x))) {
+      setMessage('a, b, V の数値が揃っていません。');
+      return;
+    }
+    saveCount += 1;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${saveCount}</td>
+      <td>${aVal.toFixed(3)}</td>
+      <td>${bVal.toFixed(3)}</td>
+      <td>${vVal.toFixed(3)}</td>
+    `;
+    savedTableBody.appendChild(tr);
+    setMessage('');
+  }
 
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.setAttribute("download", "container_volume_data.csv");
-    document.body.appendChild(link);
-    link.click();
-}
+  // 初期値設定（a=4, b=5, V=220 でスタート）
+  function init() {
+    const a0 = 4.0;
+    const b0 = 5.0;
+    const V0 = a0 * (21 - 2 * b0) * b0; // 220 になる
+
+    inputA.value = a0.toFixed(3);
+    inputB.value = b0.toFixed(3);
+    inputV.value = V0.toFixed(3);
+
+    fixedVar = 'V';
+    updateFixedDisplay();
+    setMessage('');
+  }
+
+  init();
 </script>
-
 </body>
 </html>
