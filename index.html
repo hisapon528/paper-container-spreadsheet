@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>紙容器のスプレッドシート</title>
+<title>紙容器シミュレーターのスプレッドシート</title>
 <style>
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -50,7 +50,7 @@
     border: 1px solid #888;
     background: #f3f3f3;
   }
-  button.fixed {
+  #btn-fixed-v.fixed {
     background: #0078d4;
     color: white;
     border-color: #005a9e;
@@ -72,13 +72,15 @@
 </head>
 <body>
 
-<h1>📦 紙容器シミュレーター</h1>
-<div class="formula">( V = a(21 - 2b)b )</div>
+<h1>📦 紙容器シミュレーターのスプレッドシート</h1>
+<div class="formula"> V = a(21 - 2b)b </div>
 
 <div class="section">
-  <h2>入力フォーム</h2>
-  <p>※  <strong>1つだけ「固定」</strong> が選ばれます（デフォルトは V = 220 固定）。<br>
-  固定されていない 2つのうち、どちらかを変更すると、残り1つが自動的に計算されます。</p>
+  <h2>入力エリア</h2>
+  <p>
+    ・<strong>V の「固定」ボタン</strong>が <strong>ON</strong> のとき：V を一定に保ち、a または b を変えるともう一方が自動計算されます。<br>
+    ・<strong>OFF</strong> のとき：a と b から V を計算して表示します（V は常に式通りの値になります）。
+  </p>
 
   <table>
     <thead>
@@ -92,17 +94,17 @@
       <tr>
         <th>a（底面の横）</th>
         <td><input id="input-a" type="number" step="0.001" min="0" oninput="handleInput('a')"></td>
-        <td><button id="btn-fixed-a" onclick="setFixed('a')">固定</button></td>
+        <td rowspan="3">
+          <button id="btn-fixed-v" onclick="toggleFixedV()">V を固定</button>
+        </td>
       </tr>
       <tr>
         <th>b（高さ）</th>
         <td><input id="input-b" type="number" step="0.001" min="0" oninput="handleInput('b')"></td>
-        <td><button id="btn-fixed-b" onclick="setFixed('b')">固定</button></td>
       </tr>
       <tr>
         <th>V（体積）</th>
         <td><input id="input-v" type="number" step="0.001" min="0" oninput="handleInput('V')"></td>
-        <td><button id="btn-fixed-v" onclick="setFixed('V')">固定</button></td>
       </tr>
     </tbody>
   </table>
@@ -131,18 +133,14 @@
 </div>
 
 <script>
-  // 状態管理
-  let fixedVar = 'V'; // デフォルトで V を固定
+  let vFixed = true;     // V固定かどうか（デフォルト ON）
   let saveCount = 0;
 
   const inputA = document.getElementById('input-a');
   const inputB = document.getElementById('input-b');
   const inputV = document.getElementById('input-v');
 
-  const btnFixedA = document.getElementById('btn-fixed-a');
-  const btnFixedB = document.getElementById('btn-fixed-b');
   const btnFixedV = document.getElementById('btn-fixed-v');
-
   const fixedInfo = document.getElementById('fixed-info');
   const message = document.getElementById('message');
   const savedTableBody = document.querySelector('#saved-table tbody');
@@ -152,29 +150,39 @@
   }
 
   function updateFixedDisplay() {
-    btnFixedA.classList.toggle('fixed', fixedVar === 'a');
-    btnFixedB.classList.toggle('fixed', fixedVar === 'b');
-    btnFixedV.classList.toggle('fixed', fixedVar === 'V');
-    fixedInfo.textContent = `現在 固定されている変数：${fixedVar}`;
+    btnFixedV.classList.toggle('fixed', vFixed);
+    btnFixedV.textContent = vFixed ? 'V 固定：ON' : 'V 固定：OFF';
+    fixedInfo.textContent = vFixed
+      ? '現在：V を固定しています（V を基準に a, b を調整）'
+      : '現在：V は a, b から計算されます';
   }
 
-  function setFixed(v) {
-    fixedVar = v;
+  function toggleFixedV() {
+    vFixed = !vFixed;
     updateFixedDisplay();
     setMessage('');
+
+    if (!vFixed) {
+      // OFFになった瞬間、現在の a,b から V を再計算
+      const aVal = parseFloat(inputA.value);
+      const bVal = parseFloat(inputB.value);
+      if (!isNaN(aVal) && !isNaN(bVal)) {
+        const V = aVal * (21 - 2 * bVal) * bVal;
+        inputV.value = V.toFixed(3);
+      }
+    }
   }
 
   // 二次方程式から b を求める（V = a(21 - 2b)b）
   function solveBFromAV(a, V) {
     if (a === 0) return null;
-    const D = 441 * a * a - 8 * a * V; // 判別式
+    const D = 441 * a * a - 8 * a * V;
     if (D < 0) return null;
     const sqrtD = Math.sqrt(D);
     const b1 = (21 * a + sqrtD) / (4 * a);
     const b2 = (21 * a - sqrtD) / (4 * a);
     const candidates = [b1, b2].filter(b => b > 0 && b < 10.5);
     if (candidates.length === 0) return null;
-    // 小さい方を採用
     return Math.min.apply(null, candidates);
   }
 
@@ -189,59 +197,47 @@
     let b = isNaN(bVal) ? 0 : bVal;
     let V = isNaN(vVal) ? 0 : vVal;
 
-    try {
-      if (fixedVar === 'V') {
-        // V を保ったまま a,b を調整
+    // V固定モード
+    if (vFixed) {
+      try {
         if (changed === 'a') {
+          // a が変わった → V を保ったまま b を求める
+          if (isNaN(V)) throw new Error('V の値がありません。');
           const newB = solveBFromAV(a, V);
           if (newB === null) throw new Error('その a と V の組では b が求まりません。');
           b = newB;
           inputB.value = b.toFixed(3);
         } else if (changed === 'b') {
+          // b が変わった → V を保ったまま a を求める
+          if (isNaN(V)) throw new Error('V の値がありません。');
           const denom = (21 - 2 * b) * b;
           if (denom <= 0) throw new Error('b の値が条件に合いません。');
           a = V / denom;
           if (a <= 0 || a > 8.7) throw new Error('その b と V の組では a が条件を満たしません。');
           inputA.value = a.toFixed(3);
         } else if (changed === 'V') {
-          // 固定変数自体を変えたときは、b から a を再計算
+          // V が変わった → 現在の a または b からもう一方を調整
+          // ここでは「b を元に a を調整」する設計
+          if (isNaN(b)) throw new Error('b の値がありません。');
           const denom = (21 - 2 * b) * b;
           if (denom <= 0) throw new Error('b の値が条件に合いません。');
           a = V / denom;
           if (a <= 0 || a > 8.7) throw new Error('その b と V の組では a が条件を満たしません。');
           inputA.value = a.toFixed(3);
         }
-      } else if (fixedVar === 'a') {
-        if (changed === 'b') {
-          V = a * (21 - 2 * b) * b;
-          inputV.value = V.toFixed(3);
-        } else if (changed === 'V') {
-          const newB = solveBFromAV(a, V);
-          if (newB === null) throw new Error('その a と V の組では b が求まりません。');
-          b = newB;
-          inputB.value = b.toFixed(3);
-        } else if (changed === 'a') {
-          // a を変えたときは、現在の b から V を再計算
-          V = a * (21 - 2 * b) * b;
-          inputV.value = V.toFixed(3);
-        }
-      } else if (fixedVar === 'b') {
-        if (changed === 'a') {
-          V = a * (21 - 2 * b) * b;
-          inputV.value = V.toFixed(3);
-        } else if (changed === 'V') {
-          const denom = (21 - 2 * b) * b;
-          if (denom <= 0) throw new Error('b の値が条件に合いません。');
-          a = V / denom;
-          if (a <= 0 || a > 8.7) throw new Error('その b と V の組では a が条件を満たしません。');
-          inputA.value = a.toFixed(3);
-        } else if (changed === 'b') {
-          V = a * (21 - 2 * b) * b;
-          inputV.value = V.toFixed(3);
+      } catch (e) {
+        setMessage(e.message);
+      }
+    } else {
+      // V 非固定モード：a,b から V を再計算して表示
+      if ((changed === 'a' || changed === 'b' || changed === 'V')) {
+        if (!isNaN(a) && !isNaN(b)) {
+          const newV = a * (21 - 2 * b) * b;
+          inputV.value = newV.toFixed(3);
+        } else {
+          // どちらか欠けている場合は何もしない
         }
       }
-    } catch (e) {
-      setMessage(e.message);
     }
   }
 
@@ -265,7 +261,7 @@
     setMessage('');
   }
 
-  // 初期値設定（a=4, b=5, V=220 でスタート）
+  // 初期値設定（a=4, b=5 → V=220）
   function init() {
     const a0 = 4.0;
     const b0 = 5.0;
@@ -275,7 +271,7 @@
     inputB.value = b0.toFixed(3);
     inputV.value = V0.toFixed(3);
 
-    fixedVar = 'V';
+    vFixed = true;
     updateFixedDisplay();
     setMessage('');
   }
@@ -284,5 +280,3 @@
 </script>
 </body>
 </html>
-
-
