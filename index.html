@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>紙容器データ生成ツール</title>
+<style>
+body { font-family: Arial, sans-serif; padding: 20px; }
+button { padding: 10px 20px; font-size: 18px; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<h1>📦 紙容器スプレッドシート生成ツール</h1>
+<p>式：<strong>V = a(21 - 2b)b</strong></p>
+<p><strong>a：</strong> 0～8.7<br>
+<strong>b：</strong> 0～10.5<br>
+刻み幅：0.1（変更可）</p>
+
+<label>刻み幅（a,b共通）: <input id="step" type="number" value="0.1" step="0.1"></label>
+<br><br>
+<label>目標体積: <input id="target" type="number" value="220"></label>
+<label>許容±: <input id="margin" type="number" value="10"></label>
+<br><br>
+
+<button onclick="generateCSV()">📄 CSV を生成してダウンロード</button>
+
+<script>
+function generateCSV() {
+    const step = parseFloat(document.getElementById("step").value);
+    const target = parseFloat(document.getElementById("target").value);
+    const margin = parseFloat(document.getElementById("margin").value);
+
+    let rows = [];
+    rows.push(["a","b","V","範囲内?","ほぼ220?"]);
+
+    for (let a = step; a <= 8.7; a += step) {
+        for (let b = step; b <= 10.5; b += step) {
+            const V = a * (21 - 2*b) * b;
+            const inRange = (V >= target - margin && V <= target + margin);
+            const exact = Math.abs(V - target) < 0.001;
+
+            rows.push([
+                a.toFixed(3),
+                b.toFixed(3),
+                V.toFixed(3),
+                inRange ? "TRUE" : "FALSE",
+                exact ? "TRUE" : "FALSE"
+            ]);
+        }
+    }
+
+    // CSV文字列生成
+    const csvContent = rows.map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute("download", "container_volume_data.csv");
+    document.body.appendChild(link);
+    link.click();
+}
+</script>
+
+</body>
+</html>
