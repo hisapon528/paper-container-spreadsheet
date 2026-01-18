@@ -1,19 +1,17 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>紙容器シミュレーターのスプレッドシート</title>
 <style>
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     padding: 20px;
-    max-width: 900px;
+    max-width: 980px;
     margin: auto;
   }
-  h1 {
-    font-size: 22px;
-    margin-bottom: 8px;
-  }
+  h1 { font-size: 22px; margin-bottom: 8px; }
   .formula {
     font-family: "Cambria Math", "Times New Roman", serif;
     font-size: 28px;
@@ -25,61 +23,52 @@
     padding: 12px 16px;
     margin-bottom: 20px;
   }
-  table {
-    border-collapse: collapse;
-    width: 100%;
-  }
-  th, td {
-    border: 1px solid #ccc;
-    padding: 6px 8px;
-    text-align: center;
-  }
-  th {
-    background-color: #f5f5f5;
-  }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: center; }
+  th { background-color: #f5f5f5; }
   input[type="number"] {
     width: 100%;
     box-sizing: border-box;
     padding: 4px 6px;
     text-align: right;
   }
+  input[readonly] {
+    background: #f2f2f2;
+    color: #333;
+  }
+  .btnrow {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
   button {
-    padding: 6px 10px;
+    padding: 7px 10px;
     cursor: pointer;
-    border-radius: 6px;
+    border-radius: 8px;
     border: 1px solid #888;
     background: #f3f3f3;
+    user-select: none;
   }
-  #btn-fixed-v.fixed {
+  button.fixed {
     background: #0078d4;
     color: white;
     border-color: #005a9e;
   }
-  #fixed-info {
-    font-size: 14px;
-    margin-top: 6px;
-    color: #333;
-  }
-  #message {
-    margin-top: 6px;
-    font-size: 13px;
-    color: #c00;
-  }
-  #save-btn {
-    margin-top: 10px;
-  }
+  #fixed-info { font-size: 14px; margin-top: 8px; color: #333; }
+  #message { margin-top: 6px; font-size: 13px; color: #c00; min-height: 1.2em; }
 </style>
 </head>
-<body>
 
+<body>
 <h1>📦 紙容器シミュレーターのスプレッドシート</h1>
 <div class="formula"> V = a(21 - 2b)b </div>
 
 <div class="section">
   <h2>入力エリア</h2>
-  <p>
-    ・<strong>V の「固定」ボタン</strong>が <strong>ON</strong> のとき：V を一定に保ち、a または b を変えるともう一方が自動計算されます。<br>
-    ・<strong>OFF</strong> のとき：a と b から V を計算して表示します（V は常に式通りの値になります）。
+  <p style="margin-top:0;">
+    ・固定が <strong>ON</strong> のとき：その変数を一定に保ち、他を変えると残りが自動計算されます。<br>
+    ・固定が <strong>なし</strong> のとき：a と b から V を常に計算して表示します（V は結果表示専用）。
   </p>
 
   <table>
@@ -87,32 +76,35 @@
       <tr>
         <th>変数</th>
         <th>値</th>
-        <th>固定</th>
       </tr>
     </thead>
     <tbody>
       <tr>
         <th>a（底面の横）</th>
-        <td><input id="input-a" type="number" step="0.001" min="0" oninput="handleInput('a')"></td>
-        <td rowspan="3">
-          <button id="btn-fixed-v" onclick="toggleFixedV()">V を固定</button>
-        </td>
+        <td><input id="input-a" type="number" step="0.001" min="0" /></td>
       </tr>
       <tr>
         <th>b（高さ）</th>
-        <td><input id="input-b" type="number" step="0.001" min="0" oninput="handleInput('b')"></td>
+        <td><input id="input-b" type="number" step="0.001" min="0" /></td>
       </tr>
       <tr>
         <th>V（体積）</th>
-        <td><input id="input-v" type="number" step="0.001" min="0" oninput="handleInput('V')"></td>
+        <td><input id="input-v" type="number" step="0.001" min="0" /></td>
       </tr>
     </tbody>
   </table>
 
+  <div class="btnrow">
+    <button id="btn-fixed-none">固定なし</button>
+    <button id="btn-fixed-v">V 固定</button>
+    <button id="btn-fixed-a">a 固定</button>
+    <button id="btn-fixed-b">b 固定</button>
+    <button id="btn-graph">グラフ</button>
+    <button id="btn-save">保存する</button>
+  </div>
+
   <div id="fixed-info"></div>
   <div id="message"></div>
-
-  <button id="save-btn" onclick="saveCurrent()">保存する</button>
 </div>
 
 <div class="section">
@@ -126,154 +118,624 @@
         <th>V</th>
       </tr>
     </thead>
-    <tbody>
-      <!-- ここに行が追加される -->
-    </tbody>
+    <tbody></tbody>
   </table>
 </div>
 
 <script>
-  let vFixed = true;     // V固定かどうか（デフォルト ON）
-  let saveCount = 0;
+  // ===== 定数（授業文脈で必要なら説明文も追加してOK） =====
+  const C = 21;            // V = a(C - 2b)b
+  const B_MAX = C / 2;     // (C - 2b) > 0 の上限 -> b < 10.5
+  const A_MAX = 8.7;       // 制約（紙のサイズ等から来ている想定）
+  const EPS = 1e-6;
 
+  // ===== DOM =====
   const inputA = document.getElementById('input-a');
   const inputB = document.getElementById('input-b');
   const inputV = document.getElementById('input-v');
 
-  const btnFixedV = document.getElementById('btn-fixed-v');
+  const btnNone = document.getElementById('btn-fixed-none');
+  const btnV = document.getElementById('btn-fixed-v');
+  const btnA = document.getElementById('btn-fixed-a');
+  const btnB = document.getElementById('btn-fixed-b');
+  const btnGraph = document.getElementById('btn-graph');
+  const btnSave = document.getElementById('btn-save');
+
   const fixedInfo = document.getElementById('fixed-info');
   const message = document.getElementById('message');
   const savedTableBody = document.querySelector('#saved-table tbody');
 
+  // ===== 状態 =====
+  // fixedMode: 'none' | 'V' | 'a' | 'b' （デフォルト固定なし）
+  let fixedMode = 'none';
+  let saveCount = 0;
+
+  // ===== ユーティリティ =====
   function setMessage(text) {
     message.textContent = text || '';
   }
-
-  function updateFixedDisplay() {
-    btnFixedV.classList.toggle('fixed', vFixed);
-    btnFixedV.textContent = vFixed ? 'V 固定：ON' : 'V 固定：OFF';
-    fixedInfo.textContent = vFixed
-      ? '現在：V を固定しています（V を基準に a, b を調整）'
-      : '現在：V は a, b から計算されます';
+  function isFiniteNum(x) {
+    return Number.isFinite(x);
+  }
+  function readNum(inputEl) {
+    const v = parseFloat(inputEl.value);
+    return Number.isFinite(v) ? v : NaN;
+  }
+  function fmt(x) {
+    return Number.isFinite(x) ? x.toFixed(3) : '';
   }
 
-  function toggleFixedV() {
-    vFixed = !vFixed;
+  // ===== 数式 =====
+  function calcV(a, b) {
+    return a * (C - 2 * b) * b;
+  }
+
+  // V=a(C-2b)b から、aとVが与えられたときの b を解く（二次方程式）
+  function solveBFromAV(a, V) {
+    if (!isFiniteNum(a) || a <= 0) return null;
+    if (!isFiniteNum(V) || V < 0) return null;
+
+    // 2ab^2 - Cab + V = 0
+    // D = (Ca)^2 - 8aV
+    const D = (C * a) * (C * a) - 8 * a * V;
+    if (D < 0) return null;
+
+    const sqrtD = Math.sqrt(D);
+    const b1 = (C * a + sqrtD) / (4 * a);
+    const b2 = (C * a - sqrtD) / (4 * a);
+
+    const candidates = [b1, b2].filter(b => isFiniteNum(b) && b > 0 + EPS && b < B_MAX - EPS);
+    if (candidates.length === 0) return null;
+
+    // 授業的に「小さい方」を選ぶ（必要ならルールを変えられます）
+    return Math.min(...candidates);
+  }
+
+  // b固定・V固定のとき a を求める
+  function solveAFromBV(b, V) {
+    if (!isFiniteNum(b) || b <= 0 || b >= B_MAX) return null;
+    if (!isFiniteNum(V) || V < 0) return null;
+    const denom = (C - 2 * b) * b;
+    if (!(denom > 0)) return null;
+    const a = V / denom;
+    if (!isFiniteNum(a) || a <= 0) return null;
+    return a;
+  }
+
+  // a,b が物理/設定上妥当かチェック（必要なら緩めてOK）
+  function validateAB(a, b) {
+    if (!isFiniteNum(a) || a <= 0) return 'a を正の数で入力してください。';
+    if (!isFiniteNum(b) || b <= 0) return 'b を正の数で入力してください。';
+    if (!(b < B_MAX)) return `b は ${B_MAX.toFixed(3)} 未満にしてください（(21-2b)>0）。`;
+    if (a > A_MAX) return `a が上限（${A_MAX}）を超えています。`;
+    return '';
+  }
+
+  // ===== UI（固定状態の表示 & 入力ロック） =====
+  function updateFixedDisplay() {
+    btnNone.classList.toggle('fixed', fixedMode === 'none');
+    btnV.classList.toggle('fixed', fixedMode === 'V');
+    btnA.classList.toggle('fixed', fixedMode === 'a');
+    btnB.classList.toggle('fixed', fixedMode === 'b');
+
+    const msg =
+      fixedMode === 'none' ? '現在：固定なし（a,b→Vを計算）' :
+      fixedMode === 'V'    ? '現在：V固定（Vを保ってa,bを調整）' :
+      fixedMode === 'a'    ? '現在：a固定（aを保ってb,Vを調整）' :
+                             '現在：b固定（bを保ってa,Vを調整）';
+    fixedInfo.textContent = msg;
+
+    // readonly制御
+    inputA.readOnly = (fixedMode === 'a');
+    inputB.readOnly = (fixedMode === 'b');
+    inputV.readOnly = (fixedMode === 'none'); // 固定なしでは V は計算結果表示専用
+  }
+
+  function setFixedMode(mode) {
+    fixedMode = mode; // これで「同時ON不可」要件を満たす（常に1つだけ）
     updateFixedDisplay();
     setMessage('');
 
-    if (!vFixed) {
-      // OFFになった瞬間、現在の a,b から V を再計算
-      const aVal = parseFloat(inputA.value);
-      const bVal = parseFloat(inputB.value);
-      if (!isNaN(aVal) && !isNaN(bVal)) {
-        const V = aVal * (21 - 2 * bVal) * bVal;
-        inputV.value = V.toFixed(3);
+    // モード変更直後に整合させる
+    // - none: a,bが揃っていたらV再計算
+    // - 固定: すでに値が揃っていれば矛盾がないようにV/残りを計算（できる範囲で）
+    reconcileAfterModeChange();
+  }
+
+  function reconcileAfterModeChange() {
+    const a = readNum(inputA);
+    const b = readNum(inputB);
+    const V = readNum(inputV);
+
+    try {
+      if (fixedMode === 'none') {
+        if (isFiniteNum(a) && isFiniteNum(b)) {
+          const err = validateAB(a, b);
+          if (err) throw new Error(err);
+          inputV.value = fmt(calcV(a, b));
+        } else {
+          // 欠けていればVは空に
+          inputV.value = '';
+        }
+        return;
       }
+
+      if (fixedMode === 'V') {
+        // V固定にしたなら、Vが無い場合は a,bから作る
+        if (!isFiniteNum(V)) {
+          if (isFiniteNum(a) && isFiniteNum(b)) {
+            const err = validateAB(a, b);
+            if (err) throw new Error(err);
+            inputV.value = fmt(calcV(a, b));
+          } else {
+            throw new Error('V固定にするには、V か a,b を入力してください。');
+          }
+        } else {
+          // Vがあるなら、a,bのうち揃っている方で整合させる（優先：b→a、なければa→b）
+          if (isFiniteNum(b)) {
+            const a2 = solveAFromBV(b, V);
+            if (a2 === null) throw new Error('その b と V の組では a が求まりません。');
+            if (a2 > A_MAX) throw new Error(`計算された a が上限（${A_MAX}）を超えます。`);
+            inputA.value = fmt(a2);
+          } else if (isFiniteNum(a)) {
+            const b2 = solveBFromAV(a, V);
+            if (b2 === null) throw new Error('その a と V の組では b が求まりません。');
+            inputB.value = fmt(b2);
+          }
+        }
+        return;
+      }
+
+      if (fixedMode === 'a') {
+        // a固定：a必須。Vが無ければ a,bから作る。Vがあれば a,Vからbを作る。
+        if (!isFiniteNum(a) || a <= 0) throw new Error('a固定にするには a を入力してください。');
+        if (a > A_MAX) throw new Error(`a が上限（${A_MAX}）を超えています。`);
+        if (isFiniteNum(V) && !isFiniteNum(b)) {
+          const b2 = solveBFromAV(a, V);
+          if (b2 === null) throw new Error('その a と V の組では b が求まりません。');
+          inputB.value = fmt(b2);
+        } else if (isFiniteNum(b)) {
+          const err = validateAB(a, b);
+          if (err) throw new Error(err);
+          inputV.value = fmt(calcV(a, b));
+        }
+        return;
+      }
+
+      if (fixedMode === 'b') {
+        // b固定：b必須。Vが無ければ a,bから作る。Vがあれば b,Vからaを作る。
+        if (!isFiniteNum(b) || b <= 0) throw new Error('b固定にするには b を入力してください。');
+        if (!(b < B_MAX)) throw new Error(`b は ${B_MAX.toFixed(3)} 未満にしてください。`);
+        if (isFiniteNum(V) && !isFiniteNum(a)) {
+          const a2 = solveAFromBV(b, V);
+          if (a2 === null) throw new Error('その b と V の組では a が求まりません。');
+          if (a2 > A_MAX) throw new Error(`計算された a が上限（${A_MAX}）を超えます。`);
+          inputA.value = fmt(a2);
+        } else if (isFiniteNum(a)) {
+          const err = validateAB(a, b);
+          if (err) throw new Error(err);
+          inputV.value = fmt(calcV(a, b));
+        }
+        return;
+      }
+    } catch (e) {
+      setMessage(e.message || String(e));
     }
   }
 
-  // 二次方程式から b を求める（V = a(21 - 2b)b）
-  function solveBFromAV(a, V) {
-    if (a === 0) return null;
-    const D = 441 * a * a - 8 * a * V;
-    if (D < 0) return null;
-    const sqrtD = Math.sqrt(D);
-    const b1 = (21 * a + sqrtD) / (4 * a);
-    const b2 = (21 * a - sqrtD) / (4 * a);
-    const candidates = [b1, b2].filter(b => b > 0 && b < 10.5);
-    if (candidates.length === 0) return null;
-    return Math.min.apply(null, candidates);
-  }
-
+  // ===== 入力イベントの本体 =====
   function handleInput(changed) {
     setMessage('');
 
-    const aVal = parseFloat(inputA.value);
-    const bVal = parseFloat(inputB.value);
-    const vVal = parseFloat(inputV.value);
+    const aVal = readNum(inputA);
+    const bVal = readNum(inputB);
+    const vVal = readNum(inputV);
 
-    let a = isNaN(aVal) ? 0 : aVal;
-    let b = isNaN(bVal) ? 0 : bVal;
-    let V = isNaN(vVal) ? 0 : vVal;
+    try {
+      if (fixedMode === 'none') {
+        // a,b → V（Vは表示専用）
+        if (changed === 'a' || changed === 'b') {
+          if (isFiniteNum(aVal) && isFiniteNum(bVal)) {
+            const err = validateAB(aVal, bVal);
+            if (err) throw new Error(err);
+            inputV.value = fmt(calcV(aVal, bVal));
+          } else {
+            inputV.value = '';
+          }
+        }
+        // Vを触ってもreadonlyのはずだが念のため無視
+        return;
+      }
 
-    // V固定モード
-    if (vFixed) {
-      try {
+      if (fixedMode === 'V') {
+        // V固定：Vを保って調整
+        if (!isFiniteNum(vVal)) throw new Error('V を入力してください（V固定）。');
+
         if (changed === 'a') {
-          // a が変わった → V を保ったまま b を求める
-          if (isNaN(V)) throw new Error('V の値がありません。');
-          const newB = solveBFromAV(a, V);
-          if (newB === null) throw new Error('その a と V の組では b が求まりません。');
-          b = newB;
-          inputB.value = b.toFixed(3);
-        } else if (changed === 'b') {
-          // b が変わった → V を保ったまま a を求める
-          if (isNaN(V)) throw new Error('V の値がありません。');
-          const denom = (21 - 2 * b) * b;
-          if (denom <= 0) throw new Error('b の値が条件に合いません。');
-          a = V / denom;
-          if (a <= 0 || a > 8.7) throw new Error('その b と V の組では a が条件を満たしません。');
-          inputA.value = a.toFixed(3);
-        } else if (changed === 'V') {
-          // V が変わった → 現在の a または b からもう一方を調整
-          // ここでは「b を元に a を調整」する設計
-          if (isNaN(b)) throw new Error('b の値がありません。');
-          const denom = (21 - 2 * b) * b;
-          if (denom <= 0) throw new Error('b の値が条件に合いません。');
-          a = V / denom;
-          if (a <= 0 || a > 8.7) throw new Error('その b と V の組では a が条件を満たしません。');
-          inputA.value = a.toFixed(3);
+          if (!isFiniteNum(aVal) || aVal <= 0) throw new Error('a を正の数で入力してください。');
+          if (aVal > A_MAX) throw new Error(`a が上限（${A_MAX}）を超えています。`);
+          const b2 = solveBFromAV(aVal, vVal);
+          if (b2 === null) throw new Error('その a と V の組では b が求まりません。');
+          inputB.value = fmt(b2);
+          return;
         }
-      } catch (e) {
-        setMessage(e.message);
-      }
-    } else {
-      // V 非固定モード：a,b から V を再計算して表示
-      if ((changed === 'a' || changed === 'b' || changed === 'V')) {
-        if (!isNaN(a) && !isNaN(b)) {
-          const newV = a * (21 - 2 * b) * b;
-          inputV.value = newV.toFixed(3);
-        } else {
-          // どちらか欠けている場合は何もしない
+
+        if (changed === 'b') {
+          if (!isFiniteNum(bVal) || bVal <= 0) throw new Error('b を正の数で入力してください。');
+          if (!(bVal < B_MAX)) throw new Error(`b は ${B_MAX.toFixed(3)} 未満にしてください。`);
+          const a2 = solveAFromBV(bVal, vVal);
+          if (a2 === null) throw new Error('その b と V の組では a が求まりません。');
+          if (a2 > A_MAX) throw new Error(`計算された a が上限（${A_MAX}）を超えます。`);
+          inputA.value = fmt(a2);
+          return;
+        }
+
+        if (changed === 'V') {
+          // Vを変えたら「新しい固定値」になる。
+          // 優先：bが入っていれば b固定でaを調整、なければ aが入っていれば a固定でbを調整
+          if (isFiniteNum(bVal)) {
+            const a2 = solveAFromBV(bVal, vVal);
+            if (a2 === null) throw new Error('その b と V の組では a が求まりません。');
+            if (a2 > A_MAX) throw new Error(`計算された a が上限（${A_MAX}）を超えます。`);
+            inputA.value = fmt(a2);
+          } else if (isFiniteNum(aVal)) {
+            const b2 = solveBFromAV(aVal, vVal);
+            if (b2 === null) throw new Error('その a と V の組では b が求まりません。');
+            inputB.value = fmt(b2);
+          } else {
+            throw new Error('V を変えるには、a または b の値も入力してください。');
+          }
+          return;
         }
       }
+
+      if (fixedMode === 'a') {
+        // a固定：a一定、b<->V を調整
+        if (!isFiniteNum(aVal) || aVal <= 0) throw new Error('a を正の数で入力してください（a固定）。');
+        if (aVal > A_MAX) throw new Error(`a が上限（${A_MAX}）を超えています。`);
+
+        if (changed === 'b') {
+          if (!isFiniteNum(bVal) || bVal <= 0) throw new Error('b を正の数で入力してください。');
+          if (!(bVal < B_MAX)) throw new Error(`b は ${B_MAX.toFixed(3)} 未満にしてください。`);
+          inputV.value = fmt(calcV(aVal, bVal));
+          return;
+        }
+
+        if (changed === 'V') {
+          if (!isFiniteNum(vVal)) throw new Error('V を入力してください。');
+          const b2 = solveBFromAV(aVal, vVal);
+          if (b2 === null) throw new Error('その a と V の組では b が求まりません。');
+          inputB.value = fmt(b2);
+          return;
+        }
+
+        // a欄はreadonlyだが念のため
+        if (changed === 'a') return;
+      }
+
+      if (fixedMode === 'b') {
+        // b固定：b一定、a<->V を調整
+        if (!isFiniteNum(bVal) || bVal <= 0) throw new Error('b を正の数で入力してください（b固定）。');
+        if (!(bVal < B_MAX)) throw new Error(`b は ${B_MAX.toFixed(3)} 未満にしてください。`);
+
+        if (changed === 'a') {
+          if (!isFiniteNum(aVal) || aVal <= 0) throw new Error('a を正の数で入力してください。');
+          if (aVal > A_MAX) throw new Error(`a が上限（${A_MAX}）を超えています。`);
+          inputV.value = fmt(calcV(aVal, bVal));
+          return;
+        }
+
+        if (changed === 'V') {
+          if (!isFiniteNum(vVal)) throw new Error('V を入力してください。');
+          const a2 = solveAFromBV(bVal, vVal);
+          if (a2 === null) throw new Error('その b と V の組では a が求まりません。');
+          if (a2 > A_MAX) throw new Error(`計算された a が上限（${A_MAX}）を超えます。`);
+          inputA.value = fmt(a2);
+          return;
+        }
+
+        // b欄はreadonlyだが念のため
+        if (changed === 'b') return;
+      }
+    } catch (e) {
+      setMessage(e.message || String(e));
     }
   }
 
+  // ===== 保存 =====
   function saveCurrent() {
-    const aVal = parseFloat(inputA.value);
-    const bVal = parseFloat(inputB.value);
-    const vVal = parseFloat(inputV.value);
-    if ([aVal, bVal, vVal].some(x => isNaN(x))) {
+    const aVal = readNum(inputA);
+    const bVal = readNum(inputB);
+    const vVal = readNum(inputV);
+
+    if (![aVal, bVal, vVal].every(isFiniteNum)) {
       setMessage('a, b, V の数値が揃っていません。');
       return;
     }
+
     saveCount += 1;
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${saveCount}</td>
-      <td>${aVal.toFixed(3)}</td>
-      <td>${bVal.toFixed(3)}</td>
-      <td>${vVal.toFixed(3)}</td>
+      <td>${fmt(aVal)}</td>
+      <td>${fmt(bVal)}</td>
+      <td>${fmt(vVal)}</td>
     `;
     savedTableBody.appendChild(tr);
     setMessage('');
   }
 
-  // 初期値設定（a=4, b=5 → V=220）
+  // ===== グラフ（別タブ / ズーム・パン可） =====
+  function openGraph() {
+    setMessage('');
+
+    const aVal = readNum(inputA);
+    const bVal = readNum(inputB);
+    const vVal = readNum(inputV);
+
+    // 新規タブ
+    const w = window.open('', '_blank');
+    if (!w) {
+      setMessage('ポップアップがブロックされました。ブラウザの設定で許可してください。');
+      return;
+    }
+
+    // Plotlyでズーム/パン：標準で可能（モードバーあり）
+    // 3D: surface、2D: scatter line
+    const baseHtml = `
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>グラフ</title>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; }
+  #top { padding: 12px 14px; border-bottom: 1px solid #ddd; }
+  #plot { width: 100vw; height: calc(100vh - 64px); }
+  code { background:#f2f2f2; padding:2px 4px; border-radius:4px; }
+</style>
+</head>
+<body>
+  <div id="top">
+    <div id="desc"></div>
+    <div style="margin-top:6px; color:#444; font-size:13px;">
+      操作：ドラッグで回転/パン、ホイールでズーム（右上のモードバーでも操作可能）
+    </div>
+  </div>
+  <div id="plot"></div>
+
+<script>
+  const C = ${C};
+  const B_MAX = ${B_MAX};
+  const A_MAX = ${A_MAX};
+  const EPS = ${EPS};
+
+  function calcV(a, b){ return a * (C - 2*b) * b; }
+
+  // 2D/3D描画データをこのあと注入
+</script>
+</body>
+</html>
+    `;
+
+    w.document.open();
+    w.document.write(baseHtml);
+    w.document.close();
+
+    // 描画スクリプトを注入（fixedModeに応じて）
+    const inject = (js) => {
+      const s = w.document.createElement('script');
+      s.type = 'text/javascript';
+      s.text = js;
+      w.document.body.appendChild(s);
+    };
+
+    // サンプリング範囲
+    // b: (0, 10.5)、a: (0, 8.7) を基本にして、曲線では条件でフィルタする
+    if (fixedMode === 'V') {
+      if (!isFiniteNum(vVal)) {
+        setMessage('グラフ：V固定モードでは V の値が必要です。');
+        w.close();
+        return;
+      }
+      // 2D: V固定 -> a = V / ((C-2b)b)  （横軸 b, 縦軸 a）
+      const js = `
+        const V0 = ${Number.isFinite(vVal) ? vVal : 'NaN'};
+        document.getElementById('desc').innerHTML =
+          '2次元グラフ：<code>V = ' + V0.toFixed(3) + '</code> 固定のときの関係（横軸：b、縦軸：a）';
+
+        const xs = [];
+        const ys = [];
+        const N = 1200;
+        for (let i=0; i<N; i++){
+          const b = (B_MAX - 2*EPS) * (i/(N-1)) + EPS;
+          const denom = (C - 2*b) * b;
+          if (!(denom > 0)) continue;
+          const a = V0 / denom;
+          if (!Number.isFinite(a)) continue;
+          if (a > EPS && a <= A_MAX + 1e-9) {
+            xs.push(b);
+            ys.push(a);
+          }
+        }
+
+        const trace = { x: xs, y: ys, mode: 'lines', name: 'a(b)' };
+        const layout = {
+          margin: {l: 60, r: 20, t: 20, b: 60},
+          xaxis: { title: 'b（高さ）' },
+          yaxis: { title: 'a（底面の横）' },
+          annotations: [{
+            xref: 'paper', yref: 'paper', x: 0, y: 1.08, showarrow: false,
+            text: '軸対応：x=b、y=a'
+          }]
+        };
+        Plotly.newPlot('plot', [trace], layout, {responsive: true});
+      `;
+      inject(js);
+      return;
+    }
+
+    if (fixedMode === 'a') {
+      if (!isFiniteNum(aVal)) {
+        setMessage('グラフ：a固定モードでは a の値が必要です。');
+        w.close();
+        return;
+      }
+      // 2D: a固定 -> V = a(C-2b)b （横軸 b, 縦軸 V）
+      const js = `
+        const a0 = ${Number.isFinite(aVal) ? aVal : 'NaN'};
+        document.getElementById('desc').innerHTML =
+          '2次元グラフ：<code>a = ' + a0.toFixed(3) + '</code> 固定のときの関係（横軸：b、縦軸：V）';
+
+        const xs = [];
+        const ys = [];
+        const N = 800;
+        for (let i=0; i<N; i++){
+          const b = (B_MAX - 2*EPS) * (i/(N-1)) + EPS;
+          const V = calcV(a0, b);
+          if (Number.isFinite(V)) { xs.push(b); ys.push(V); }
+        }
+
+        const trace = { x: xs, y: ys, mode: 'lines', name: 'V(b)' };
+        const layout = {
+          margin: {l: 70, r: 20, t: 20, b: 60},
+          xaxis: { title: 'b（高さ）' },
+          yaxis: { title: 'V（体積）' },
+          annotations: [{
+            xref: 'paper', yref: 'paper', x: 0, y: 1.08, showarrow: false,
+            text: '軸対応：x=b、y=V'
+          }]
+        };
+        Plotly.newPlot('plot', [trace], layout, {responsive: true});
+      `;
+      inject(js);
+      return;
+    }
+
+    if (fixedMode === 'b') {
+      if (!isFiniteNum(bVal)) {
+        setMessage('グラフ：b固定モードでは b の値が必要です。');
+        w.close();
+        return;
+      }
+      // 2D: b固定 -> V = a(C-2b)b （横軸 a, 縦軸 V）
+      const js = `
+        const b0 = ${Number.isFinite(bVal) ? bVal : 'NaN'};
+        document.getElementById('desc').innerHTML =
+          '2次元グラフ：<code>b = ' + b0.toFixed(3) + '</code> 固定のときの関係（横軸：a、縦軸：V）';
+
+        const xs = [];
+        const ys = [];
+        const N = 600;
+        for (let i=0; i<N; i++){
+          const a = (A_MAX - 2*EPS) * (i/(N-1)) + EPS;
+          const V = calcV(a, b0);
+          if (Number.isFinite(V)) { xs.push(a); ys.push(V); }
+        }
+
+        const trace = { x: xs, y: ys, mode: 'lines', name: 'V(a)' };
+        const layout = {
+          margin: {l: 70, r: 20, t: 20, b: 60},
+          xaxis: { title: 'a（底面の横）' },
+          yaxis: { title: 'V（体積）' },
+          annotations: [{
+            xref: 'paper', yref: 'paper', x: 0, y: 1.08, showarrow: false,
+            text: '軸対応：x=a、y=V'
+          }]
+        };
+        Plotly.newPlot('plot', [trace], layout, {responsive: true});
+      `;
+      inject(js);
+      return;
+    }
+
+    // fixedMode === 'none'
+    // 3D: (a, b) -> V の曲面（x=b, y=a, z=V）
+    const js3d = `
+      document.getElementById('desc').innerHTML =
+        '3次元グラフ：固定なし（曲面 <code>V = a(21 - 2b)b</code>）<br>' +
+        '軸対応：x=b、y=a、z=V';
+
+      const nA = 60;
+      const nB = 60;
+
+      // x: b, y: a, z: V
+      const x = [];
+      const y = [];
+      const z = [];
+
+      for (let i=0; i<nB; i++){
+        const b = (B_MAX - 2*EPS) * (i/(nB-1)) + EPS;
+        x.push(b);
+      }
+      for (let j=0; j<nA; j++){
+        const a = (A_MAX - 2*EPS) * (j/(nA-1)) + EPS;
+        y.push(a);
+      }
+
+      for (let j=0; j<nA; j++){
+        const row = [];
+        for (let i=0; i<nB; i++){
+          row.push(calcV(y[j], x[i]));
+        }
+        z.push(row);
+      }
+
+      const surface = {
+        type: 'surface',
+        x: x,   // b
+        y: y,   // a
+        z: z,   // V
+        name: 'V(a,b)'
+      };
+
+      const layout = {
+        margin: {l: 0, r: 0, t: 0, b: 0},
+        scene: {
+          xaxis: { title: 'b（高さ）' },
+          yaxis: { title: 'a（底面の横）' },
+          zaxis: { title: 'V（体積）' }
+        }
+      };
+
+      Plotly.newPlot('plot', [surface], layout, {responsive: true});
+    `;
+    inject(js3d);
+  }
+
+  // ===== イベント登録 =====
+  inputA.addEventListener('input', () => handleInput('a'));
+  inputB.addEventListener('input', () => handleInput('b'));
+  inputV.addEventListener('input', () => handleInput('V'));
+
+  btnNone.addEventListener('click', () => setFixedMode('none'));
+  btnV.addEventListener('click', () => setFixedMode('V'));
+  btnA.addEventListener('click', () => setFixedMode('a'));
+  btnB.addEventListener('click', () => setFixedMode('b'));
+
+  btnGraph.addEventListener('click', openGraph);
+  btnSave.addEventListener('click', saveCurrent);
+
+  // ===== 初期化 =====
   function init() {
+    // 初期値（例）：a=4, b=5 → V=220
     const a0 = 4.0;
     const b0 = 5.0;
-    const V0 = a0 * (21 - 2 * b0) * b0; // 220 になる
+    const V0 = calcV(a0, b0);
 
-    inputA.value = a0.toFixed(3);
-    inputB.value = b0.toFixed(3);
-    inputV.value = V0.toFixed(3);
+    inputA.value = fmt(a0);
+    inputB.value = fmt(b0);
+    inputV.value = fmt(V0);
 
-    vFixed = true;
+    // デフォルト：固定なし
+    fixedMode = 'none';
     updateFixedDisplay();
     setMessage('');
+
+    // fixedMode=noneなのでVは自動計算で整合済み
+    handleInput('a');
   }
 
   init();
