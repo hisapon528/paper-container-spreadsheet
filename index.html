@@ -5,64 +5,23 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>紙容器シミュレーターのスプレッドシート</title>
 <style>
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    padding: 20px;
-    max-width: 980px;
-    margin: auto;
-  }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding: 20px; max-width: 980px; margin: auto; }
   h1 { font-size: 22px; margin-bottom: 8px; }
-  .formula {
-    font-family: "Cambria Math", "Times New Roman", serif;
-    font-size: 28px;
-    margin-bottom: 16px;
-  }
-  .section {
-    border: 1px solid #ddd;
-    border-radius: 10px;
-    padding: 12px 16px;
-    margin-bottom: 20px;
-  }
+  .formula { font-family: "Cambria Math","Times New Roman",serif; font-size: 28px; margin-bottom: 16px; }
+  .section { border: 1px solid #ddd; border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; }
   table { border-collapse: collapse; width: 100%; }
   th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: center; }
   th { background-color: #f5f5f5; }
-
-  input[type="number"] {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 4px 6px;
-    text-align: right;
-  }
-  input[readonly] {
-    background: #f2f2f2;
-    color: #333;
-  }
-
-  .btnrow {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-top: 10px;
-  }
-  button {
-    padding: 7px 10px;
-    cursor: pointer;
-    border-radius: 8px;
-    border: 1px solid #888;
-    background: #f3f3f3;
-    user-select: none;
-  }
-  button.fixed {
-    background: #0078d4;
-    color: white;
-    border-color: #005a9e;
-  }
-
+  input[type="number"] { width: 100%; box-sizing: border-box; padding: 4px 6px; text-align: right; }
+  input[readonly] { background: #f2f2f2; color: #333; }
+  .btnrow { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  button { padding: 7px 10px; cursor: pointer; border-radius: 8px; border: 1px solid #888; background: #f3f3f3; user-select: none; }
+  button.fixed { background: #0078d4; color: white; border-color: #005a9e; }
   #fixed-info { font-size: 14px; margin-top: 8px; color: #333; }
   #message { margin-top: 6px; font-size: 13px; color: #c00; min-height: 1.2em; }
+  #js-alive { margin-top: 8px; font-size: 13px; color: #0a0; }
 </style>
 </head>
-
 <body>
 <h1>📦 紙容器シミュレーターのスプレッドシート</h1>
 <div class="formula"> V = a(21 - 2b)b </div>
@@ -75,22 +34,11 @@
   </p>
 
   <table>
-    <thead>
-      <tr><th>変数</th><th>値</th></tr>
-    </thead>
+    <thead><tr><th>変数</th><th>値</th></tr></thead>
     <tbody>
-      <tr>
-        <th>a（底面の横）</th>
-        <td><input id="input-a" type="number" step="0.001" min="0" /></td>
-      </tr>
-      <tr>
-        <th>b（高さ）</th>
-        <td><input id="input-b" type="number" step="0.001" min="0" /></td>
-      </tr>
-      <tr>
-        <th>V（体積）</th>
-        <td><input id="input-v" type="number" step="0.001" min="0" /></td>
-      </tr>
+      <tr><th>a（底面の横）</th><td><input id="input-a" type="number" step="0.001" min="0"></td></tr>
+      <tr><th>b（高さ）</th><td><input id="input-b" type="number" step="0.001" min="0"></td></tr>
+      <tr><th>V（体積）</th><td><input id="input-v" type="number" step="0.001" min="0"></td></tr>
     </tbody>
   </table>
 
@@ -105,27 +53,22 @@
 
   <div id="fixed-info"></div>
   <div id="message"></div>
+  <div id="js-alive"></div>
 </div>
 
 <div class="section">
   <h2>保存された組み合わせ</h2>
   <table id="saved-table">
-    <thead>
-      <tr><th>#</th><th>a</th><th>b</th><th>V</th></tr>
-    </thead>
+    <thead><tr><th>#</th><th>a</th><th>b</th><th>V</th></tr></thead>
     <tbody></tbody>
   </table>
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  // ===== 定数 =====
+(() => {
   const C = 21;
-  const B_MAX = C / 2;   // b < 10.5
-  const A_MAX = 8.7;     // 仕様上の上限（必要ならUIで根拠説明）
+  const B_MAX = C / 2;   // 10.5
+  const A_MAX = 8.7;     // 必要なら変更
   const EPS = 1e-6;
 
-  // ===== DOM =====
   const inputA = document.getElementById('input-a');
   const inputB = document.getElementById('input-b');
   const inputV = document.getElementById('input-v');
@@ -139,53 +82,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const fixedInfo = document.getElementById('fixed-info');
   const message = document.getElementById('message');
+  const jsAlive = document.getElementById('js-alive');
   const savedTableBody = document.querySelector('#saved-table tbody');
 
-  // ===== 状態 =====
-  // fixedMode: null | 'V' | 'a' | 'b'
-  // null が「固定なし」。デフォルト固定なし。
-  let fixedMode = null;
+  jsAlive.textContent = '✅ JS起動中（index.html + app.js で動作しています）';
+
+  let fixedMode = null; // null | 'V' | 'a' | 'b'
   let saveCount = 0;
 
-  // ===== ユーティリティ =====
-  function setMessage(text) { message.textContent = text || ''; }
-  function isFiniteNum(x) { return Number.isFinite(x); }
-  function readNum(el) {
+  const setMessage = (t) => { message.textContent = t || ''; };
+  const isFiniteNum = (x) => Number.isFinite(x);
+  const readNum = (el) => {
     const v = parseFloat(el.value);
     return Number.isFinite(v) ? v : NaN;
-  }
-  function fmt(x) { return Number.isFinite(x) ? x.toFixed(3) : ''; }
+  };
+  const fmt = (x) => (Number.isFinite(x) ? x.toFixed(3) : '');
 
-  // ===== 数式 =====
-  function calcV(a, b) { return a * (C - 2 * b) * b; }
+  const calcV = (a, b) => a * (C - 2 * b) * b;
 
-  // V=a(C-2b)b から、aとVが与えられたときの b
   function solveBFromAV(a, V) {
     if (!isFiniteNum(a) || a <= 0) return null;
     if (!isFiniteNum(V) || V < 0) return null;
-
     const D = (C * a) * (C * a) - 8 * a * V;
     if (D < 0) return null;
-
     const sqrtD = Math.sqrt(D);
     const b1 = (C * a + sqrtD) / (4 * a);
     const b2 = (C * a - sqrtD) / (4 * a);
-
-    const candidates = [b1, b2].filter(b => isFiniteNum(b) && b > 0 + EPS && b < B_MAX - EPS);
-    if (candidates.length === 0) return null;
-
-    // 授業的に「小さい方」を採用（必要なら変更可）
-    return Math.min(...candidates);
+    const cand = [b1, b2].filter(b => isFiniteNum(b) && b > 0 + EPS && b < B_MAX - EPS);
+    if (!cand.length) return null;
+    return Math.min(...cand);
   }
 
-  // b,Vからa
   function solveAFromBV(b, V) {
     if (!isFiniteNum(b) || b <= 0 || b >= B_MAX) return null;
     if (!isFiniteNum(V) || V < 0) return null;
-
     const denom = (C - 2 * b) * b;
     if (!(denom > 0)) return null;
-
     const a = V / denom;
     if (!isFiniteNum(a) || a <= 0) return null;
     return a;
@@ -197,26 +129,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!(b < B_MAX)) return `b は ${B_MAX.toFixed(3)} 未満にしてください。`;
     if (a > A_MAX) return `a が上限（${A_MAX}）を超えています。`;
     return '';
-  }
-
-  // ===== 固定トグル（同時ON不可）=====
-  function setFixedNone() {
-    fixedMode = null;
-    updateFixedDisplay();
-    setMessage('');
-    reconcileAfterModeChange();
-  }
-
-  function toggleFixed(mode) {
-    setMessage('');
-
-    if (fixedMode === mode) {
-      fixedMode = null;     // ON→OFF
-    } else {
-      fixedMode = mode;     // OFF→ON（他は自動OFF扱い）
-    }
-    updateFixedDisplay();
-    reconcileAfterModeChange();
   }
 
   function updateFixedDisplay() {
@@ -233,22 +145,31 @@ document.addEventListener('DOMContentLoaded', () => {
     btnA.textContent = `a 固定：${aOn ? 'ON' : 'OFF'}`;
     btnB.textContent = `b 固定：${bOn ? 'ON' : 'OFF'}`;
 
-    const info =
+    fixedInfo.textContent =
       fixedMode === null ? '現在：固定なし（a,b→Vを計算）' :
       fixedMode === 'V'  ? '現在：V固定（Vを保ってa,bを調整）' :
       fixedMode === 'a'  ? '現在：a固定（aを保ってb,Vを調整）' :
                            '現在：b固定（bを保ってa,Vを調整）';
-    fixedInfo.textContent = info;
 
-    // 固定されている変数は編集不可
     inputA.readOnly = (fixedMode === 'a');
     inputB.readOnly = (fixedMode === 'b');
-
-    // 固定なしの時は V は結果表示専用にする（UX改善）
-    inputV.readOnly = (fixedMode === null);
+    inputV.readOnly = (fixedMode === null); // 固定なしではVは結果表示
   }
 
-  // モード切替直後に整合を取る
+  function setFixedNone() {
+    fixedMode = null;
+    updateFixedDisplay();
+    setMessage('');
+    reconcileAfterModeChange();
+  }
+
+  function toggleFixed(mode) {
+    setMessage('');
+    fixedMode = (fixedMode === mode) ? null : mode; // ON/OFFトグル（同時ON不可は単一状態で保証）
+    updateFixedDisplay();
+    reconcileAfterModeChange();
+  }
+
   function reconcileAfterModeChange() {
     const a = readNum(inputA);
     const b = readNum(inputB);
@@ -267,7 +188,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       if (fixedMode === 'V') {
-        // Vが無いなら a,b から作る
         if (!isFiniteNum(V)) {
           if (isFiniteNum(a) && isFiniteNum(b)) {
             const err = validateAB(a, b);
@@ -277,7 +197,6 @@ document.addEventListener('DOMContentLoaded', () => {
             throw new Error('V固定をONにするには、V か a,b を入力してください。');
           }
         } else {
-          // Vがあるなら b優先でa補完、なければa優先でb補完
           if (isFiniteNum(b)) {
             const a2 = solveAFromBV(b, V);
             if (a2 === null) throw new Error('その b と V の組では a が求まりません。');
@@ -295,7 +214,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (fixedMode === 'a') {
         if (!isFiniteNum(a) || a <= 0) throw new Error('a固定をONにするには a を入力してください。');
         if (a > A_MAX) throw new Error(`a が上限（${A_MAX}）を超えています。`);
-
         if (isFiniteNum(b)) {
           const err = validateAB(a, b);
           if (err) throw new Error(err);
@@ -311,7 +229,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (fixedMode === 'b') {
         if (!isFiniteNum(b) || b <= 0) throw new Error('b固定をONにするには b を入力してください。');
         if (!(b < B_MAX)) throw new Error(`b は ${B_MAX.toFixed(3)} 未満にしてください。`);
-
         if (isFiniteNum(a)) {
           const err = validateAB(a, b);
           if (err) throw new Error(err);
@@ -322,24 +239,20 @@ document.addEventListener('DOMContentLoaded', () => {
           if (a2 > A_MAX) throw new Error(`計算された a が上限（${A_MAX}）を超えます。`);
           inputA.value = fmt(a2);
         }
-        return;
       }
     } catch (e) {
       setMessage(e.message || String(e));
     }
   }
 
-  // ===== 入力イベント本体 =====
   function handleInput(changed) {
     setMessage('');
-
     const a = readNum(inputA);
     const b = readNum(inputB);
     const V = readNum(inputV);
 
     try {
       if (fixedMode === null) {
-        // 固定なし：a,b -> V（Vはreadonly）
         if (changed === 'a' || changed === 'b') {
           if (isFiniteNum(a) && isFiniteNum(b)) {
             const err = validateAB(a, b);
@@ -363,7 +276,6 @@ document.addEventListener('DOMContentLoaded', () => {
           inputB.value = fmt(b2);
           return;
         }
-
         if (changed === 'b') {
           if (!isFiniteNum(b) || b <= 0) throw new Error('b を正の数で入力してください。');
           if (!(b < B_MAX)) throw new Error(`b は ${B_MAX.toFixed(3)} 未満にしてください。`);
@@ -373,9 +285,7 @@ document.addEventListener('DOMContentLoaded', () => {
           inputA.value = fmt(a2);
           return;
         }
-
         if (changed === 'V') {
-          // Vを変えたら、入力済みの方を基準に補完（b優先）
           if (isFiniteNum(b)) {
             const a2 = solveAFromBV(b, V);
             if (a2 === null) throw new Error('その b と V の組では a が求まりません。');
@@ -386,85 +296,63 @@ document.addEventListener('DOMContentLoaded', () => {
             if (b2 === null) throw new Error('その a と V の組では b が求まりません。');
             inputB.value = fmt(b2);
           } else {
-            throw new Error('V固定ONで V を変えるときは、a または b も入力してください。');
+            throw new Error('V固定ONでVを変えるときは a または b も入力してください。');
           }
-          return;
         }
+        return;
       }
 
       if (fixedMode === 'a') {
         if (!isFiniteNum(a) || a <= 0) throw new Error('a を正の数で入力してください（a固定ON）。');
         if (a > A_MAX) throw new Error(`a が上限（${A_MAX}）を超えています。`);
-
         if (changed === 'b') {
           if (!isFiniteNum(b) || b <= 0) throw new Error('b を正の数で入力してください。');
           if (!(b < B_MAX)) throw new Error(`b は ${B_MAX.toFixed(3)} 未満にしてください。`);
           inputV.value = fmt(calcV(a, b));
-          return;
-        }
-
-        if (changed === 'V') {
+        } else if (changed === 'V') {
           if (!isFiniteNum(V)) throw new Error('V を入力してください。');
           const b2 = solveBFromAV(a, V);
           if (b2 === null) throw new Error('その a と V の組では b が求まりません。');
           inputB.value = fmt(b2);
-          return;
         }
-
         return;
       }
 
       if (fixedMode === 'b') {
         if (!isFiniteNum(b) || b <= 0) throw new Error('b を正の数で入力してください（b固定ON）。');
         if (!(b < B_MAX)) throw new Error(`b は ${B_MAX.toFixed(3)} 未満にしてください。`);
-
         if (changed === 'a') {
           if (!isFiniteNum(a) || a <= 0) throw new Error('a を正の数で入力してください。');
           if (a > A_MAX) throw new Error(`a が上限（${A_MAX}）を超えています。`);
           inputV.value = fmt(calcV(a, b));
-          return;
-        }
-
-        if (changed === 'V') {
+        } else if (changed === 'V') {
           if (!isFiniteNum(V)) throw new Error('V を入力してください。');
           const a2 = solveAFromBV(b, V);
           if (a2 === null) throw new Error('その b と V の組では a が求まりません。');
           if (a2 > A_MAX) throw new Error(`計算された a が上限（${A_MAX}）を超えます。`);
           inputA.value = fmt(a2);
-          return;
         }
-
-        return;
       }
     } catch (e) {
       setMessage(e.message || String(e));
     }
   }
 
-  // ===== 保存 =====
   function saveCurrent() {
     const a = readNum(inputA);
     const b = readNum(inputB);
     const V = readNum(inputV);
-
     if (![a, b, V].every(isFiniteNum)) {
       setMessage('a, b, V の数値が揃っていません。');
       return;
     }
-
     saveCount += 1;
     const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${saveCount}</td>
-      <td>${fmt(a)}</td>
-      <td>${fmt(b)}</td>
-      <td>${fmt(V)}</td>
-    `;
+    tr.innerHTML = `<td>${saveCount}</td><td>${fmt(a)}</td><td>${fmt(b)}</td><td>${fmt(V)}</td>`;
     savedTableBody.appendChild(tr);
     setMessage('');
   }
 
-  // ===== グラフ（Plotly：別タブ・ズーム/パン可・2D/3D切替）=====
   function openGraph() {
     setMessage('');
 
@@ -473,210 +361,116 @@ document.addEventListener('DOMContentLoaded', () => {
     const V = readNum(inputV);
 
     const w = window.open('', '_blank');
-    if (!w) {
-      setMessage('ポップアップがブロックされました。ブラウザ設定で許可してください。');
-      return;
-    }
+    if (!w) { setMessage('ポップアップがブロックされました。'); return; }
 
-    // 別タブのHTML骨格（Plotly CDN）
-    const html = `
-<!doctype html>
-<html lang="ja">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+    const html = `<!doctype html>
+<html lang="ja"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>グラフ</title>
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 <style>
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; }
-  #top { padding: 12px 14px; border-bottom: 1px solid #ddd; }
-  #plot { width: 100vw; height: calc(100vh - 80px); }
-  code { background:#f2f2f2; padding:2px 4px; border-radius:4px; }
-  .small { margin-top:6px; color:#444; font-size:13px; }
-</style>
-</head>
-<body>
-  <div id="top">
-    <div id="desc"></div>
-    <div class="small">操作：ドラッグでパン/回転、ホイールでズーム（右上のモードバーでも操作可）</div>
-  </div>
-  <div id="plot"></div>
-
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0}
+  #top{padding:12px 14px;border-bottom:1px solid #ddd}
+  #plot{width:100vw;height:calc(100vh - 80px)}
+  code{background:#f2f2f2;padding:2px 4px;border-radius:4px}
+  .small{margin-top:6px;color:#444;font-size:13px}
+</style></head><body>
+<div id="top"><div id="desc"></div>
+<div class="small">操作：ドラッグでパン/回転、ホイールでズーム（右上のモードバーでも操作可）</div>
+</div>
+<div id="plot"></div>
 <script>
-  const C = ${C};
-  const B_MAX = ${B_MAX};
-  const A_MAX = ${A_MAX};
-  const EPS = ${EPS};
-
-  function calcV(a, b){ return a * (C - 2*b) * b; }
+const C=${C}, B_MAX=${B_MAX}, A_MAX=${A_MAX}, EPS=${EPS};
+function calcV(a,b){return a*(C-2*b)*b;}
 </script>
-</body>
-</html>`;
-    w.document.open();
-    w.document.write(html);
-    w.document.close();
+</body></html>`;
+    w.document.open(); w.document.write(html); w.document.close();
 
-    function inject(js) {
+    const inject = (js) => {
       const s = w.document.createElement('script');
       s.type = 'text/javascript';
       s.text = js;
       w.document.body.appendChild(s);
-    }
+    };
 
-    // fixedModeに応じて2D/3D
-    // 2Dの軸は「固定値に対する残り2変数の関係」が分かりやすい選び方にしています。
+    // 固定あり→2D、固定なし→3D
     if (fixedMode === 'V') {
       if (!isFiniteNum(V)) { w.close(); setMessage('グラフ：V固定ONでは V が必要です。'); return; }
-
-      // V固定：220 = a(21-2b)b → a = V / ((21-2b)b)
       inject(`
-        const V0 = ${isFiniteNum(V) ? V : 'NaN'};
+        const V0=${V};
         document.getElementById('desc').innerHTML =
-          '2次元グラフ：<code>V = ' + V0.toFixed(3) + '</code> 固定（横軸：b、縦軸：a）<br>' +
-          '式：<code>a = V / ((21-2b)b)</code>';
-
-        const xs = [];
-        const ys = [];
-        const N = 1200;
-
-        for (let i=0; i<N; i++){
-          const b = (B_MAX - 2*EPS) * (i/(N-1)) + EPS;
-          const denom = (C - 2*b) * b;
-          if (!(denom > 0)) continue;
-          const a = V0 / denom;
-          if (!Number.isFinite(a)) continue;
-          if (a > EPS && a <= A_MAX + 1e-9){
-            xs.push(b);
-            ys.push(a);
-          }
+          '2次元：<code>V='+V0.toFixed(3)+'</code> 固定（横軸：b、縦軸：a）';
+        const xs=[], ys=[], N=1200;
+        for(let i=0;i<N;i++){
+          const b=(B_MAX-2*EPS)*(i/(N-1))+EPS;
+          const denom=(C-2*b)*b;
+          if(!(denom>0)) continue;
+          const a=V0/denom;
+          if(a>EPS && a<=A_MAX+1e-9){ xs.push(b); ys.push(a); }
         }
-
-        const trace = { x: xs, y: ys, mode: 'lines', name: 'a(b)' };
-        const layout = {
-          margin: {l: 70, r: 20, t: 10, b: 60},
-          xaxis: { title: 'b（高さ）' },
-          yaxis: { title: 'a（底面の横）' },
-          annotations: [{
-            xref:'paper', yref:'paper', x:0, y:1.12, showarrow:false,
-            text:'軸対応：x=b、y=a'
-          }]
-        };
-        Plotly.newPlot('plot', [trace], layout, {responsive:true});
+        Plotly.newPlot('plot',[{x:xs,y:ys,mode:'lines'}],
+          {margin:{l:70,r:20,t:10,b:60},xaxis:{title:'b（高さ）'},yaxis:{title:'a（底面の横）'},
+           annotations:[{xref:'paper',yref:'paper',x:0,y:1.12,showarrow:false,text:'軸対応：x=b、y=a'}]},
+          {responsive:true});
       `);
       return;
     }
-
     if (fixedMode === 'a') {
       if (!isFiniteNum(a)) { w.close(); setMessage('グラフ：a固定ONでは a が必要です。'); return; }
-
-      // a固定：V = a(21-2b)b → V(b)
       inject(`
-        const a0 = ${isFiniteNum(a) ? a : 'NaN'};
+        const a0=${a};
         document.getElementById('desc').innerHTML =
-          '2次元グラフ：<code>a = ' + a0.toFixed(3) + '</code> 固定（横軸：b、縦軸：V）<br>' +
-          '式：<code>V = a(21-2b)b</code>';
-
-        const xs = [];
-        const ys = [];
-        const N = 900;
-
-        for (let i=0; i<N; i++){
-          const b = (B_MAX - 2*EPS) * (i/(N-1)) + EPS;
-          const V = calcV(a0, b);
-          if (Number.isFinite(V)) { xs.push(b); ys.push(V); }
+          '2次元：<code>a='+a0.toFixed(3)+'</code> 固定（横軸：b、縦軸：V）';
+        const xs=[], ys=[], N=900;
+        for(let i=0;i<N;i++){
+          const b=(B_MAX-2*EPS)*(i/(N-1))+EPS;
+          xs.push(b); ys.push(calcV(a0,b));
         }
-
-        const trace = { x: xs, y: ys, mode: 'lines', name: 'V(b)' };
-        const layout = {
-          margin: {l: 70, r: 20, t: 10, b: 60},
-          xaxis: { title: 'b（高さ）' },
-          yaxis: { title: 'V（体積）' },
-          annotations: [{
-            xref:'paper', yref:'paper', x:0, y:1.12, showarrow:false,
-            text:'軸対応：x=b、y=V'
-          }]
-        };
-        Plotly.newPlot('plot', [trace], layout, {responsive:true});
+        Plotly.newPlot('plot',[{x:xs,y:ys,mode:'lines'}],
+          {margin:{l:70,r:20,t:10,b:60},xaxis:{title:'b（高さ）'},yaxis:{title:'V（体積）'},
+           annotations:[{xref:'paper',yref:'paper',x:0,y:1.12,showarrow:false,text:'軸対応：x=b、y=V'}]},
+          {responsive:true});
       `);
       return;
     }
-
     if (fixedMode === 'b') {
       if (!isFiniteNum(b)) { w.close(); setMessage('グラフ：b固定ONでは b が必要です。'); return; }
-
-      // b固定：V = a(21-2b)b → V(a)
       inject(`
-        const b0 = ${isFiniteNum(b) ? b : 'NaN'};
+        const b0=${b};
         document.getElementById('desc').innerHTML =
-          '2次元グラフ：<code>b = ' + b0.toFixed(3) + '</code> 固定（横軸：a、縦軸：V）<br>' +
-          '式：<code>V = a(21-2b)b</code>';
-
-        const xs = [];
-        const ys = [];
-        const N = 700;
-
-        for (let i=0; i<N; i++){
-          const a = (A_MAX - 2*EPS) * (i/(N-1)) + EPS;
-          const V = calcV(a, b0);
-          if (Number.isFinite(V)) { xs.push(a); ys.push(V); }
+          '2次元：<code>b='+b0.toFixed(3)+'</code> 固定（横軸：a、縦軸：V）';
+        const xs=[], ys=[], N=700;
+        for(let i=0;i<N;i++){
+          const a=(A_MAX-2*EPS)*(i/(N-1))+EPS;
+          xs.push(a); ys.push(calcV(a,b0));
         }
-
-        const trace = { x: xs, y: ys, mode: 'lines', name: 'V(a)' };
-        const layout = {
-          margin: {l: 70, r: 20, t: 10, b: 60},
-          xaxis: { title: 'a（底面の横）' },
-          yaxis: { title: 'V（体積）' },
-          annotations: [{
-            xref:'paper', yref:'paper', x:0, y:1.12, showarrow:false,
-            text:'軸対応：x=a、y=V'
-          }]
-        };
-        Plotly.newPlot('plot', [trace], layout, {responsive:true});
+        Plotly.newPlot('plot',[{x:xs,y:ys,mode:'lines'}],
+          {margin:{l:70,r:20,t:10,b:60},xaxis:{title:'a（底面の横）'},yaxis:{title:'V（体積）'},
+           annotations:[{xref:'paper',yref:'paper',x:0,y:1.12,showarrow:false,text:'軸対応：x=a、y=V'}]},
+          {responsive:true});
       `);
       return;
     }
 
-    // 固定なし → 3D（x=b, y=a, z=V の曲面）
+    // 固定なし→3D（x=b, y=a, z=V）
     inject(`
       document.getElementById('desc').innerHTML =
-        '3次元グラフ：固定なし（曲面 <code>V = a(21-2b)b</code>）<br>' +
-        '軸対応：x=b、y=a、z=V';
-
-      const nA = 60;
-      const nB = 60;
-      const x = []; // b
-      const y = []; // a
-      const z = []; // V
-
-      for (let i=0; i<nB; i++){
-        x.push((B_MAX - 2*EPS) * (i/(nB-1)) + EPS);
-      }
-      for (let j=0; j<nA; j++){
-        y.push((A_MAX - 2*EPS) * (j/(nA-1)) + EPS);
-      }
-
-      for (let j=0; j<nA; j++){
-        const row = [];
-        for (let i=0; i<nB; i++){
-          row.push(calcV(y[j], x[i])); // a=y[j], b=x[i]
-        }
+        '3次元：固定なし（軸：x=b、y=a、z=V）';
+      const nA=60,nB=60,x=[],y=[],z=[];
+      for(let i=0;i<nB;i++) x.push((B_MAX-2*EPS)*(i/(nB-1))+EPS);
+      for(let j=0;j<nA;j++) y.push((A_MAX-2*EPS)*(j/(nA-1))+EPS);
+      for(let j=0;j<nA;j++){
+        const row=[];
+        for(let i=0;i<nB;i++) row.push(calcV(y[j],x[i]));
         z.push(row);
       }
-
-      const surface = { type:'surface', x:x, y:y, z:z, name:'V(a,b)' };
-      const layout = {
-        margin:{l:0,r:0,t:0,b:0},
-        scene:{
-          xaxis:{title:'b（高さ）'},
-          yaxis:{title:'a（底面の横）'},
-          zaxis:{title:'V（体積）'}
-        }
-      };
-      Plotly.newPlot('plot', [surface], layout, {responsive:true});
+      Plotly.newPlot('plot',[{type:'surface',x:x,y:y,z:z}],
+        {margin:{l:0,r:0,t:0,b:0},
+         scene:{xaxis:{title:'b（高さ）'},yaxis:{title:'a（底面の横）'},zaxis:{title:'V（体積）'}}},
+        {responsive:true});
     `);
   }
 
-  // ===== イベント登録 =====
   inputA.addEventListener('input', () => handleInput('a'));
   inputB.addEventListener('input', () => handleInput('b'));
   inputV.addEventListener('input', () => handleInput('V'));
@@ -689,25 +483,13 @@ document.addEventListener('DOMContentLoaded', () => {
   btnGraph.addEventListener('click', openGraph);
   btnSave.addEventListener('click', saveCurrent);
 
-  // ===== 初期化 =====
-  function init() {
-    // 初期値（例）：a=4, b=5 → V=220
-    const a0 = 4.0;
-    const b0 = 5.0;
-    inputA.value = fmt(a0);
-    inputB.value = fmt(b0);
+  // init
+  inputA.value = fmt(4.0);
+  inputB.value = fmt(5.0);
+  updateFixedDisplay();
+  handleInput('a');
+})();
 
-    // デフォルト固定なし
-    fixedMode = null;
-    updateFixedDisplay();
-    setMessage('');
-
-    // V計算
-    handleInput('a');
-  }
-
-  init();
-});
-</script>
+<script src="./app.js"></script>
 </body>
 </html>
