@@ -20,8 +20,6 @@
   const jsAlive = document.getElementById('js-alive');
   const savedTableBody = document.querySelector('#saved-table tbody');
 
-  jsAlive.textContent = '✅ JS起動中（index.html + app.js で動作しています）';
-
   let fixedMode = null; // null | 'V' | 'a' | 'b'
   let saveCount = 0;
 
@@ -81,10 +79,10 @@
     btnB.textContent = `b 固定：${bOn ? 'ON' : 'OFF'}`;
 
     fixedInfo.textContent =
-      fixedMode === null ? '現在：固定なし（a,b→Vを計算）' :
-      fixedMode === 'V'  ? '現在：V固定（Vを保ってa,bを調整）' :
-      fixedMode === 'a'  ? '現在：a固定（aを保ってb,Vを調整）' :
-                           '現在：b固定（bを保ってa,Vを調整）';
+      fixedMode === null ? '現在：a,bの値からVを計算しています。' :
+      fixedMode === 'V'  ? '現在：Vを定数とし、a,bを変数としています' :
+      fixedMode === 'a'  ? '現在：aを定数とし、b,Vを変数としています' :
+                           '現在：bを定数とし、a,Vを変数としています';
 
     inputA.readOnly = (fixedMode === 'a');
     inputB.readOnly = (fixedMode === 'b');
@@ -298,20 +296,30 @@
     const w = window.open('', '_blank');
     if (!w) { setMessage('ポップアップがブロックされました。'); return; }
 
+    // ★ズームアウトが効かない主因（スクロール奪取）を潰すCSSを追加
     const html = `<!doctype html>
 <html lang="ja"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>グラフ</title>
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 <style>
-  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0}
+  html, body { height: 100%; }
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    margin:0;
+    overflow:hidden; /* ←ホイール↓がページスクロールに奪われるのを防ぐ */
+  }
   #top{padding:12px 14px;border-bottom:1px solid #ddd}
-  #plot{width:100vw;height:calc(100vh - 80px)}
+  #plot{
+    width:100vw;height:calc(100vh - 80px);
+    touch-action:none;           /* ←タッチ/トラックパッド干渉を減らす */
+    overscroll-behavior:none;    /* ←ブラウザのバウンス/戻る等を抑える */
+  }
   code{background:#f2f2f2;padding:2px 4px;border-radius:4px}
   .small{margin-top:6px;color:#444;font-size:13px}
 </style></head><body>
 <div id="top"><div id="desc"></div>
-<div class="small">操作：ドラッグでパン/回転、ホイールでズーム（右上のモードバーでも操作可）</div>
+<div class="small">操作：ホイールでズーム（拡大・縮小）、ドラッグで移動／回転。ダブルクリックでリセット。</div>
 </div>
 <div id="plot"></div>
 <script>
@@ -327,6 +335,9 @@ function calcV(a,b){return a*(C-2*b)*b;}
       s.text = js;
       w.document.body.appendChild(s);
     };
+
+    // ★Plotlyの設定：scrollZoomを明示（拡大・縮小の両方を安定させる）
+    const plotlyConfigLiteral = `{responsive:true, scrollZoom:true, displayModeBar:true}`;
 
     // 固定あり→2D、固定なし→3D
     if (fixedMode === 'V') {
@@ -346,7 +357,7 @@ function calcV(a,b){return a*(C-2*b)*b;}
         Plotly.newPlot('plot',[{x:xs,y:ys,mode:'lines'}],
           {margin:{l:70,r:20,t:10,b:60},xaxis:{title:'b（高さ）'},yaxis:{title:'a（底面の横）'},
            annotations:[{xref:'paper',yref:'paper',x:0,y:1.12,showarrow:false,text:'軸対応：x=b、y=a'}]},
-          {responsive:true});
+          ${plotlyConfigLiteral});
       `);
       return;
     }
@@ -364,7 +375,7 @@ function calcV(a,b){return a*(C-2*b)*b;}
         Plotly.newPlot('plot',[{x:xs,y:ys,mode:'lines'}],
           {margin:{l:70,r:20,t:10,b:60},xaxis:{title:'b（高さ）'},yaxis:{title:'V（体積）'},
            annotations:[{xref:'paper',yref:'paper',x:0,y:1.12,showarrow:false,text:'軸対応：x=b、y=V'}]},
-          {responsive:true});
+          ${plotlyConfigLiteral});
       `);
       return;
     }
@@ -382,7 +393,7 @@ function calcV(a,b){return a*(C-2*b)*b;}
         Plotly.newPlot('plot',[{x:xs,y:ys,mode:'lines'}],
           {margin:{l:70,r:20,t:10,b:60},xaxis:{title:'a（底面の横）'},yaxis:{title:'V（体積）'},
            annotations:[{xref:'paper',yref:'paper',x:0,y:1.12,showarrow:false,text:'軸対応：x=a、y=V'}]},
-          {responsive:true});
+          ${plotlyConfigLiteral});
       `);
       return;
     }
@@ -402,7 +413,7 @@ function calcV(a,b){return a*(C-2*b)*b;}
       Plotly.newPlot('plot',[{type:'surface',x:x,y:y,z:z}],
         {margin:{l:0,r:0,t:0,b:0},
          scene:{xaxis:{title:'b（高さ）'},yaxis:{title:'a（底面の横）'},zaxis:{title:'V（体積）'}}},
-        {responsive:true});
+        ${plotlyConfigLiteral});
     `);
   }
 
