@@ -296,7 +296,6 @@
     const w = window.open('', '_blank');
     if (!w) { setMessage('ポップアップがブロックされました。'); return; }
 
-    // ★ズームアウトが効かない主因（スクロール奪取）を潰すCSSを追加
     const html = `<!doctype html>
 <html lang="ja"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -307,19 +306,19 @@
   body{
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
     margin:0;
-    overflow:hidden; /* ←ホイール↓がページスクロールに奪われるのを防ぐ */
+    overflow:hidden; //ホイール↓がページスクロールに奪われるのを防ぐ
   }
   #top{padding:12px 14px;border-bottom:1px solid #ddd}
   #plot{
     width:100vw;height:calc(100vh - 80px);
-    touch-action:none;           /* ←タッチ/トラックパッド干渉を減らす */
-    overscroll-behavior:none;    /* ←ブラウザのバウンス/戻る等を抑える */
+    touch-action:none;           
+    overscroll-behavior:none;    
   }
   code{background:#f2f2f2;padding:2px 4px;border-radius:4px}
   .small{margin-top:6px;color:#444;font-size:13px}
 </style></head><body>
 <div id="top"><div id="desc"></div>
-<div class="small">操作：ホイールでズーム（拡大・縮小）、ドラッグで移動／回転。ダブルクリックでリセット。</div>
+<div class="small">操作：ホイールで拡大・縮小、ドラッグで移動／回転。ダブルクリックでリセット。</div>
 </div>
 <div id="plot"></div>
 <script>
